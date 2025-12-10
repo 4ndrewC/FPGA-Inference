@@ -1,0 +1,132 @@
+`timescale 1ns / 1ps
+
+module nn_forward (
+    input  logic signed [15:0] in_val,
+    input  logic               start,
+    input  logic               clk,
+    input  logic               rst_n,
+    output logic signed [15:0] out_val,
+    output logic               done
+);
+
+    localparam int FRAC_BITS = 11;
+    
+    
+    logic signed [15:0] l1weights [16] = '{
+      -1301,  6262, -8026, -7371, -4739,  3677,  -162,  7974,
+       -727,  2975, -3207, -1610, -9529, -6438, -3275,  1520
+    };
+
+    logic signed [15:0] l1bias [16] = '{
+       2853,  5223, -4035, -2156,  3570,  7577, -1686,  5625,
+      -1320,  1102,  6963, -7599, -3103, -1040, -3295,  6956
+    };
+
+    logic signed [15:0] l2weights [16][16] = '{
+      '{ -2325,   407, -1884, -3147, -2384,  2954,   914,  2333,   108,   441, -1131, -1912, -2563, -1789,  1292,  1744 },
+      '{   -29,  -638,  2324,  3572,  1858,   981,  1373, -1581,   382, -2382,  -470, -1058,  2360,  2407,  -934,  1530 },
+      '{  1595,  -428,  -470,   746,  1602,  2610, -1578,  -732,   805,  1433,  2113,  1807,   503, -1459,   -66,  -957 },
+      '{ -2089,  1718,  1703, -2068,   229,  -617,  -337, -1013,   788, -1213,   575,  1036,  1469,   702, -2149, -1548 },
+      '{    83,  1627, -2235, -1702,  1059,  2210,  -893,   649, -1951,  1230, -2465, -1580,  -428,  -279, -1108,   496 },
+      '{ -1799,  1752,  1403, -1727,  -659,  -130,   299,   397,   804,   126, -1645,   969, -1965, -1214,  -513, -1296 },
+      '{    58, -2239,  -616,  1257,  -587,   622,  1466,  -277,    57,  -498,  1191,  1302,  2484,  2342,  1944,   638 },
+      '{ -1840,  -971,  1394,   -13, -1018, -1569, -1917, -1729,  -415,  1123,  1107, -1975,  1278, -1603,  -433,  -830 },
+      '{ -1276,   479, -3135, -2359, -1042,  -644,  -930,  1647, -1843,   802,   966,  -835,  1350,   233, -2116,   478 },
+      '{  -236,  -914,  1638, -1655,   220,  -429,  1463,   572,   984,   723,  -492,  -431, -1688,  1110,  1626,  1401 },
+      '{ -2016,  1265, -1716, -2392, -2499,  1638, -1220,  1132,    86,  2655, -3275, -1406, -2344,   352,  -736,  2132 },
+      '{    57,  1274,  -490,  -566,  -465,     1,   -14,  1245, -1602,     8,   901, -1662,   -51,  1581,   468,  -404 },
+      '{ -2600,   518, -1459,  -436,  -528,  -902,    22,  1214,   256,  1465,   549, -1295,   919, -1260,  -868,   -67 },
+      '{   676,  1536,  -659,     3,  1054, -1981,  1481, -1694,    28,  -348, -1079,   271,  1694,  -599, -1216,  -757 },
+      '{ -1629,  2032,  -984,   561, -2134,  2034,  1085,  2691,   743,   666,  -470,   605,  1595, -1958,  -969,  -309 },
+      '{ -1936,   442, -1149, -1826,  1796, -1330,  -233,   587,    65, -1378, -1655,  1632,   333,  1699,  -687,   603 }
+    };
+
+    logic signed [15:0] l2bias [16] = '{
+      -1263,   834,  -916,   489,  -186,  -402,   314, -1262,
+        565, -1525,   481, -1285, -1697,   368,  -520,   472
+    };
+
+    logic signed [15:0] l3weights [16] = '{
+       1727, -2821,  -641,  1459,  1611, -1859, -2564,  -316,
+        614,  -747,  2071,  1475, -1322,    20,  2218,   161
+    };
+
+    logic signed [15:0] outbias = -1136;
+
+    logic signed [15:0] h1_neurons [16];
+    logic               s1_valid;
+
+
+    logic signed [15:0] h2_neurons [16];
+    logic               s2_valid;
+
+    function automatic logic signed [15:0] fixed_mult(input logic signed [15:0] a, b);
+        logic signed [31:0] temp;
+        temp = a * b;
+        return temp >>> FRAC_BITS;
+    endfunction
+
+    function automatic logic signed [15:0] relu(input logic signed [15:0] val);
+        return (val > 0) ? val : 16'd0;
+    endfunction
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            s1_valid <= 0;
+            s2_valid <= 0;
+            done     <= 0;
+            out_val  <= 0;
+            
+            for (int i=0; i<16; i++) begin
+                h1_neurons[i] <= 0;
+                h2_neurons[i] <= 0;
+            end
+        end else begin
+
+            if (start) begin
+                for (int i = 0; i < 16; i++) begin
+                    logic signed [15:0] mac;
+                    mac = fixed_mult(in_val, l1weights[i]) + l1bias[i];
+                    h1_neurons[i] <= relu(mac);
+                end
+                s1_valid <= 1'b1;
+            end else begin
+                s1_valid <= 1'b0;
+            end
+
+
+            if (s1_valid) begin
+                for (int row = 0; row < 16; row++) begin
+                    logic signed [31:0] acc; 
+                    acc = l2bias[row];       
+                                            
+                    
+                    acc = 0;
+                    for (int col = 0; col < 16; col++) begin
+                        acc = acc + fixed_mult(h1_neurons[col], l2weights[row][col]);
+                    end
+                
+                    h2_neurons[row] <= relu(acc[15:0] + l2bias[row]); 
+                end
+                s2_valid <= 1'b1;
+            end else begin
+                s2_valid <= 1'b0;
+            end
+            
+            if (s2_valid) begin
+                logic signed [31:0] acc;
+                acc = 0;
+                
+                for (int i = 0; i < 16; i++) begin
+                    acc = acc + fixed_mult(h2_neurons[i], l3weights[i]);
+                end
+                
+                out_val <= acc[15:0] + outbias;
+                done    <= 1'b1;
+            end else begin
+                done <= 1'b0;
+            end
+        end
+    end
+
+endmodule

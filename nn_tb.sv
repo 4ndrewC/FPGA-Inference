@@ -1,12 +1,12 @@
 `timescale 1ns/1ps
 
 module tb_nn;
-    localparam int N = 40;
+    localparam int N = 32;
 //    int W = 16;
     logic clk;
 //    logic [2:0] layer;
-    logic [N-1:0] in;
-    logic [N-1:0] out;
+    logic signed [N-1:0] in;
+    logic signed [N-1:0] out;
     logic rst;
     logic done;
     
@@ -17,34 +17,25 @@ module tb_nn;
         .out(out),
         .done(done)
     );
-
+    
     always #5 clk = ~clk; 
     int i, j;
     initial begin
         rst = 1;
-        in = 16'sd614;
+//        in = 16'sd614;
+//        in = 16'sd2048;
+        in = 16'sd2048;
         clk = 0;
         
         
-        #10;
-        rst = 0;
-//        for (int i = 0; i < 16; i++) begin
-//            dut.l1weights[i] = i;    // <-- replace this with your desired values
-//        end
-//        for (int i = 0; i < 16; i++) begin
-//            dut.l1bias[i] = 16'h0001 * i;  // simple example bias
-//        end
-        
-        #50;
+       
+//       #100;
+         #10;
+         rst = 0;
+         
+         #100;
 
-//        clk = 0;
-        
-        #100;
-//        layer = 1;
-
-//        layer = 2;
-
-//        #20;
+            rst = 1;
          if(done) $display("%d\n", out);
         $finish;
     end

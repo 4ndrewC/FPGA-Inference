@@ -1,5 +1,5 @@
 module mat_mul #(
-    parameter int N = 40,       
+    parameter int N = 32,       
     parameter int W = 16        
 )(
     input logic clk,
@@ -37,11 +37,14 @@ always_comb begin
          for(i = 0; i < W; i ++) begin 
              sum = 0;
              for(j = 0; j < W; j++) begin 
-                 mult = mat1[i][j] * mat2[j];
-                 sum += mult;
+                 mult = (mat1[i][j] * mat2[j])>>>11;
+//                 sum = (sum+mult)>>11;
+                sum+=mult;
              end
-        sum = (sum >>> 11) + bias[i];
-        out[i] = (sum > 0) ? sum : 0;
+//        sum = (sum >>> 11) + bias[i];
+//            sum = (sum+bias[i])>>11;
+            sum+=bias[i];
+            out[i] = (sum >= 0) ? sum : 0;
 //             out[i] = (sum + bias[i]) > 0 ? (sum + bias[i]) : 0;
     //        out[i] = sum+bias[i];
     //         out[i] = 16'h1111;

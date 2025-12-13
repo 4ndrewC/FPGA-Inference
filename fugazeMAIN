@@ -1,0 +1,68 @@
+import serial
+import time
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.animation import FuncAnimation
+
+ser = serial.Serial(
+    port='COM3',               
+    baudrate=9600,              
+    bytesize=serial.EIGHTBITS,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE,
+    timeout=1
+)
+
+print(f"Opened {ser.name}")
+
+inputs = []
+outputs = []
+
+plt.ion()
+fig, ax = plt.subplots(figsize=(10, 6))
+line, = ax.plot([], [], 'bo-', label='NN Inference', markersize=8)
+ax.set_xlabel('Input Value')
+ax.set_ylabel('Output Value')
+ax.set_title('FPGA Neural Network Input-Output Pairs')
+ax.legend()
+ax.grid(True)
+
+def update_plot():
+    if inputs and outputs:
+        ax.relim()
+        ax.autoscale_view()
+        line.set_data(inputs, outputs)
+        fig.canvas.draw()
+        fig.canvas.flush_events()
+
+try:
+    print("FPGA NN")
+    print("Sending input-output pairs from neural network inference...")
+   
+    for i in range(50):
+        input_val = -2.0 + (i / 49.0) * 4.0
+        output_val = np.sin(input_val)
+
+        data = f"{input_val:.4f},{output_val:.4f}\n".encode()
+        ser.write(data)
+        print(f"Sent: Input={input_val:.4f}, Output={output_val:.4f}")
+        
+        inputs.append(input_val)
+        outputs.append(output_val)
+
+        update_plot()
+        
+        time.sleep(0.1) 
+    
+    print(f"\nCompleted {len(inputs)} inference cycles")
+    print("Close the plot window to exit...")
+    plt.ioff()
+    plt.show()
+    
+except KeyboardInterrupt:
+    print("\nStopping...")
+except Exception as e:
+    print(f"Error: {e}")
+finally:
+    ser.close()
+    print("Port closed")

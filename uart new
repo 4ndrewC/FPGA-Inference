@@ -1,13 +1,14 @@
+// uart_tx.sv (The same module from the previous answer)
 module uart_tx #(
-    parameter CLKS_PER_BIT = 868 // Defaults to (100MHz / 115200 baud)
+    parameter CLKS_PER_BIT = 868
 )(
     input  logic       clk,
     input  logic       rst_n,
     input  logic [7:0] tx_byte,
-    input  logic       tx_dv,     // "Data Valid" pulse to start sending
-    output logic       tx_active, // High while sending
-    output logic       tx_serial, // The actual output pin
-    output logic       tx_done    // Pulse when finished
+    input  logic       tx_dv,    
+    output logic       tx_active,
+    output logic       tx_serial,
+    output logic       tx_done   
 );
 
     typedef enum logic [2:0] {IDLE, START, DATA, STOP, CLEANUP} state_t;
@@ -20,7 +21,7 @@ module uart_tx #(
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state       <= IDLE;
-            tx_serial   <= 1'b1; // UART Idle is High
+            tx_serial   <= 1'b1;
             tx_done     <= 0;
             tx_active   <= 0;
             clk_cnt     <= 0;
@@ -42,7 +43,7 @@ module uart_tx #(
                     end
                 end
 
-                // Start Bit = 0
+                // START
                 START: begin
                     tx_serial <= 1'b0;
                     if (clk_cnt < CLKS_PER_BIT - 1) begin
@@ -53,7 +54,7 @@ module uart_tx #(
                     end
                 end
 
-                // Data Bits (LSB first)
+                // DATA
                 DATA: begin
                     tx_serial <= tx_data_latched[bit_idx];
                     
@@ -70,7 +71,7 @@ module uart_tx #(
                     end
                 end
 
-                // Stop Bit = 1
+                // STOP
                 STOP: begin
                     tx_serial <= 1'b1;
                     if (clk_cnt < CLKS_PER_BIT - 1) begin
